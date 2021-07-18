@@ -29,6 +29,8 @@ int main (void) {
     pthread_t tid[NTHREADS];
     int ident[NTHREADS];
     char mostrar_vetor;
+    char rodar_teste;
+    int passaram_no_teste = 0;
 
     for(int i=0; i<=9999; i++){
         quadrados[i] = i%10;
@@ -46,7 +48,7 @@ int main (void) {
     }
 
     printf("mostrar vetor? (y/n): ");
-    scanf("%c", &mostrar_vetor);
+    scanf(" %c", &mostrar_vetor);
 
     if(mostrar_vetor == 'y' || mostrar_vetor == 'Y'){
         printf("[");
@@ -55,6 +57,19 @@ int main (void) {
         }
         printf("%d]\n", quadrados[9999]);
 
+    }
+
+    printf("rodar teste? (y/n): ");
+    scanf(" %c", &rodar_teste);
+
+    if(rodar_teste == 'y' || rodar_teste == 'Y'){
+        for(int i=0; i<=9999; i++){
+            if(quadrados[i] == (i%10)*(i%10)){
+                passaram_no_teste++;
+            }
+        }
+        printf("--> passaram no teste: %d\n", passaram_no_teste);
+        printf("--> o vetor está correto.\n");
     }
 
     pthread_exit(NULL);

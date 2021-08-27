@@ -161,6 +161,7 @@ int main(void)
     // double YOffset = 0.041;
     int frame = 1;
     /* Loop until the user closes the window */
+    GET_TIME(start);
     while (!glfwWindowShouldClose(window))
     {
         // Setup View
@@ -171,7 +172,6 @@ int main(void)
         glfwGetFramebufferSize(window, &WindowMatrixPlot.width, &WindowMatrixPlot.height);
         glViewport(0, 0, WindowMatrixPlot.width, WindowMatrixPlot.height);
 
-        GET_TIME(start);
         /* Render here */
         for(int i = 0; i < N_THREADS; i++) {
             if(pthread_create(&threads[i], NULL, calculaPixel, NULL)) {
@@ -221,12 +221,7 @@ int main(void)
         //         );
         //     }
         // }
-        GET_TIME(finish);
-        elapsed = finish - start;
-        printf("Frame %d --> ", frame++);
-        // printf("Tempo de execucao sequencial: %lf\n", elapsed);
-        printf("Tempo de execucao concorrente: %lf\n", elapsed);
-
+        frame++;
         glClear(GL_COLOR_BUFFER_BIT);
 
         // Drawing
@@ -242,6 +237,10 @@ int main(void)
         WindowMatrixPlot.zoom *= 0.75;
         if(frame == 11) break;
     }
+    GET_TIME(finish);
+    elapsed = finish - start;
+    // printf("Tempo de execucao sequencial: %lf\n", elapsed);
+    printf("Tempo de execucao concorrente: %lf\n", elapsed);
 
     pthread_mutex_destroy(&lock);
     glfwTerminate();

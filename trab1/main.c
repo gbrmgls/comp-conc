@@ -40,7 +40,10 @@ double MAX_BRIGHT_LENGTH;
 int mtxposition;
 pthread_mutex_t lock;
 
+// Variáveis para controle de desempenho
 double start, finish, elapsed;
+double t_sequencial = 0;
+double t_p = 0;
 
 // Recebe o "andamento" da matriz e define a coordenada de onde está
 void nextMatrixLocation(int mtxposition, t_coords* fractalMatrixLocation) {
@@ -228,6 +231,8 @@ int main(int argc, char* argv[])
         glfwGetFramebufferSize(window, &WindowMatrixPlot.width, &WindowMatrixPlot.height);
         glViewport(0, 0, WindowMatrixPlot.width, WindowMatrixPlot.height);
 
+        GET_TIME(start);
+
         for(int i = 0; i < N_THREADS; i++) {
             if(pthread_create(&threads[i], NULL, calculaPixel, NULL)) {
                 printf("Erro pthread_create");
@@ -241,7 +246,18 @@ int main(int argc, char* argv[])
                 return 1;
             }
         }
-        // mandelbrotSequencial();
+
+        GET_TIME(finish);
+        elapsed = finish - start;
+        printf("Tempo de execução concorrente %lf\n", elapsed);
+        t_p += elapsed;
+
+        GET_TIME(start);
+        mandelbrotSequencial();
+        GET_TIME(finish);
+        elapsed = finish - start;
+        printf("Tempo de execução sequencial: %lf\n", elapsed);
+        t_sequencial += elapsed;
 
         frame++;
         glClear(GL_COLOR_BUFFER_BIT);
@@ -266,15 +282,25 @@ int main(int argc, char* argv[])
     for(int i = 0; i < WIDTH * HEIGHT * 3; i++) {
         if(mtxtestconc[i] != mtxtestseq[i]) {
             deuRuim = 1;
-            printf("deu ruim\n");
             printf("pixel %d %d\n", (i/3)%WIDTH, (i/3)/WIDTH);
             printf("mtxtestconc[i] = %d, mtxtestseq[i] = %d\n", mtxtestconc[i], mtxtestseq[i]);
             break;
         }
     }
-    if(!deuRuim) printf("Deu bom\n");
+    if(!deuRuim){
+        printf("Deu bom\n");
+    } else {
+        printf("Deu ruim\n");
+    }
+
 
     pthread_mutex_destroy(&lock);
     glfwTerminate();
+
+    printf("Tempo total de execucao concorrente: %lf\n", t_p);
+    printf("Tempo total de execucao sequencial: %lf\n", t_sequencial);
+
+    printf("Speed up: %lf\n", (t_sequencial/t_p));
+
     return 0;
 }

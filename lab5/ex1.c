@@ -1,22 +1,60 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include<time.h>
 
 int n_threads;
 int* vetor;
+
+int bloqueadas_ler = 0;
+pthread_mutex_t x_mutex_ler;
+pthread_cond_t x_cond_ler;
+
+int bloqueadas_escrever = 0;
+pthread_mutex_t x_mutex_escrever;
+pthread_cond_t x_cond_escrever;
+
+void barreira_ler(int nthreads, int id){
+    pthread_mutex_lock(&x_mutex_ler);
+
+    if(bloqueadas_ler == (n_threads-1)){
+        pthread_cond_broadcast(&x_cond_ler);
+        bloqueadas_ler = 0;
+    } else {
+        bloqueadas_ler++;
+        pthread_cond_wait(&x_cond_ler, &x_mutex_ler);
+    }
+    pthread_mutex_unlock(&x_mutex_ler); 
+}
+
+void barreira_escrever(int nthreads, int id){
+    pthread_mutex_lock(&x_mutex_escrever);
+
+    if(bloqueadas_escrever == (n_threads-1)){
+        pthread_cond_broadcast(&x_cond_escrever);
+        bloqueadas_escrever = 0;
+    } else {
+        bloqueadas_escrever++;
+        pthread_cond_wait(&x_cond_escrever, &x_mutex_escrever);
+    }
+    pthread_mutex_unlock(&x_mutex_escrever);
+}
 
 void* acumular (void* arg){
     int id = *(int*) arg;
     long int acumulador = 0;
 
     for(int i = 0; i < n_threads; i++){
-        // Soma todos os elementos do vetor e acumula
+
         for(int j = 0; j < n_threads; j++){
             acumulador += vetor[j];
         }
 
-        //TODO: aguardar todas as threads terminarem
-        // vetor[id] = rand() % 10;
+        barreira_ler(n_threads, id);
+
+        vetor[id] = rand() % 10;
+
+        barreira_escrever(n_threads, id);
     }
 
     pthread_exit((void*) acumulador);
@@ -24,6 +62,9 @@ void* acumular (void* arg){
 }
 
 int main(int argc, char* argv[]){
+
+    srand(time(NULL));
+
     if(argc < 2){
         printf("Execute: %s <numero de threads>\n", argv[0]);
         return 1;
@@ -35,6 +76,12 @@ int main(int argc, char* argv[]){
 
     pthread_t tid[n_threads];
     int ident[n_threads];
+
+    pthread_mutex_init(&x_mutex_ler, NULL);
+    pthread_cond_init (&x_cond_ler, NULL);
+
+    pthread_mutex_init(&x_mutex_escrever, NULL);
+    pthread_cond_init (&x_cond_escrever, NULL);
 
     // Inicializa o vetor
 

@@ -7,7 +7,7 @@ int* vetor;
 
 void* acumular (void* arg){
     int id = *(int*) arg;
-    int acumulador = 0;
+    long int acumulador = 0;
 
     for(int i = 0; i < n_threads; i++){
         // Soma todos os elementos do vetor e acumula
@@ -16,7 +16,7 @@ void* acumular (void* arg){
         }
 
         //TODO: aguardar todas as threads terminarem
-        vetor[id] = rand() % 10;
+        // vetor[id] = rand() % 10;
     }
 
     pthread_exit((void*) acumulador);
@@ -31,7 +31,7 @@ int main(int argc, char* argv[]){
 
     n_threads = atoi(argv[1]);
     vetor = malloc(n_threads * sizeof(int));
-    int resultado_thread;
+    long int resultado_thread;
 
     pthread_t tid[n_threads];
     int ident[n_threads];
@@ -51,11 +51,11 @@ int main(int argc, char* argv[]){
 
     for(int i = 0; i < n_threads; i++){
         ident[i] = i;
-        if(pthread_join(tid[i], (void**) &resultado_thread)){
+        if(pthread_join(tid[i], (void*) &resultado_thread)){
             printf("ERRO NO JOIN DAS THREADS");
         }
 
-        printf("Resultado da thread %d: %d", i, resultado_thread);
+        printf("Resultado da thread %d: %ld\n", i, resultado_thread);
     }
 
     // free(vetor);

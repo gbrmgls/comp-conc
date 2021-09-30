@@ -2,7 +2,7 @@
 
 ---
 
-*Gabriel Magalhães Nunes de Souza - DRE: 118088665*
+*Gabriel Magalhães Nunes de Souza - DRE: 118088665* \
 *Raphael Mesquita - DRE: 118020104*
 
 ---

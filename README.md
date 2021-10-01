@@ -1,2 +1,2 @@
 # comp-conc
-Exercícios das listas de laboratório da disciplina de Computação Concorrente em C e Java
+Exercícios em C e Java das listas e laboratórios da disciplina de Computação Concorrente do curso de Ciência da Computação da UFRJ

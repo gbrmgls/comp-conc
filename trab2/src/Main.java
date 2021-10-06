@@ -4,8 +4,8 @@ import java.util.InputMismatchException;
 import java.util.Scanner;
 
 class BufferLimitado {
-  private int[] buffer;
-  private int N, count = 0, in = 0, out = 0;
+  private int[] buffer, entrada;
+  private int N, elementos, count = 0, in = 0, out = 0;
 
   // Construtor
   BufferLimitado(int N, String entrada) {
@@ -14,41 +14,49 @@ class BufferLimitado {
 
     try {
       s = new Scanner(new FileInputStream(entrada));
-      int elementos = s.nextInt();
-      int blocos = elementos/N;
-      this.buffer = new int[elementos];
+      this.elementos = s.nextInt();
+      this.buffer = new int[N];
+      this.entrada = new int[this.elementos];
 
-      while(s.hasNextInt()) {
-        System.out.println(s.nextLine());
-      }
       s.close();
     } catch (FileNotFoundException e) {
       e.printStackTrace();
     }
+  }
 
-    for (int i = 0; i < N; i++) {
-      //inicia o buffer
+  public int getN() { return this.N; }
+
+  public void printBuffer() {
+    for(int i = 0; i < this.elementos; i++) {
+      if((i+1) % this.N == 0 && i != 0) System.out.println(this.entrada[i]);
+      else if(i == this.elementos - 1) System.out.print(this.entrada[i]);
+      else System.out.print(this.entrada[i] + " ");
     }
   }
-  
+
   public synchronized void Insere (int elemento) {
     try {
-      while (count == N) { wait(); } //bloqueio condicão lógica
+      while (count == this.N) { wait(); } //bloqueio condicão lógica
+      // System.out.println("Inserindo elemento: " + elemento);
       buffer[in] = elemento;
-      in = (in + 1) % N; count++;
+      in = (in + 1) % this.N; count++;
       notifyAll();
     } catch (InterruptedException e) { }
   }
 
-  public synchronized int Remove () {
-    int elemento;
+  public synchronized int[] Remove () {
+    int[] elementos = new int[this.N];
     try {
-      while (count == 0) { wait(); } //bloqueio condição lógica
-      elemento = buffer[out % N];
-      out = (out + 1) % N; count--;
+      while (count == 0 || count != this.N) { wait(); } //bloqueio condição lógica
+
+      while(count > 0) {
+        elementos[out] = buffer[out % this.N];
+        out = (out + 1) % this.N; count--;
+      }
+
       notifyAll();
-      return elemento;
-    } catch(InterruptedException e) {return -1;}
+      return elementos;
+    } catch(InterruptedException e) { return new int[1]; }
   }
 }
 
@@ -62,7 +70,6 @@ class Produtor extends Thread {
     try {
       this.entrada = new Scanner(new FileInputStream(entrada));
       this.elementos = this.entrada.nextInt();
-      this.entrada.close();
     } catch (FileNotFoundException e) {
       e.printStackTrace();
     }
@@ -72,7 +79,50 @@ class Produtor extends Thread {
     for (;this.entrada.hasNextInt();) {
       try {
         this.buffer.Insere(entrada.nextInt());
-        sleep(500);
+        sleep(0);
+      } catch (InterruptedException e) {
+        return;
+      }
+    }
+    // buffer.printBuffer();
+  }
+}
+
+class Consumidor extends Thread {
+  int id;
+  int[] bloco;
+  BufferLimitado buffer;
+  Consumidor(int id, BufferLimitado buffer) {
+    this.id = id;
+    this.buffer = buffer;
+    this.bloco = new int[buffer.getN()];
+  }
+
+  private int[] ordenaBloco(int tamBloco, int[] bloco) {
+    int[] blocoOrdenado = bloco;
+    int k, j, aux;
+
+    for (k = 1; k < tamBloco; k++) {
+      for (j = 0; j < tamBloco - k; j++) {
+        if (bloco[j] > bloco[j + 1]) {
+          aux = bloco[j];
+          bloco[j] = bloco[j + 1];
+          bloco[j + 1] = aux;
+        }
+      }
+    }
+
+    return blocoOrdenado;
+  }
+
+  public void run () {
+    for (;;) {
+      try {
+        this.bloco = this.ordenaBloco(this.buffer.getN(), this.buffer.Remove().clone());
+        
+        for(int i = 0; i < bloco.length; i++) System.out.print(bloco[i] + " ");
+        System.out.println();
+        sleep(0);
       } catch (InterruptedException e) {
         return;
       }
@@ -171,11 +221,15 @@ class Escritor extends Thread {
 }
 
 class Main {
+  static final int Prod = 1;
+  static final int Cons = 4;
   static final int L = 3;
   static final int E = 2;
 
   public static void main (String[] args) {
     int i;
+    Produtor prod;
+    Consumidor cons;
     Monitor monitor = new Monitor();
     Leitor[] l = new Leitor[L];
     Escritor[] e = new Escritor[E]; 
@@ -193,6 +247,12 @@ class Main {
     String saida = args[3];
     
     BufferLimitado buffer = new BufferLimitado(N, entrada);
+
+    prod = new Produtor(1, entrada, buffer);
+    prod.start();
+
+    cons = new Consumidor(2, buffer);
+    cons.start();
     // for (i=0; i<L; i++) {
     //    l[i] = new Leitor(i+1, monitor, numero);
     //    l[i].start(); 

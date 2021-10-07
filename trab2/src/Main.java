@@ -1,24 +1,25 @@
+import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.util.InputMismatchException;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.Writer;
 import java.util.Scanner;
 
 class BufferLimitado {
-  private int[] buffer, entrada;
-  private int N, elementos, count = 0, in = 0, out = 0;
+  private int[] buffer;
+  private int N, count = 0, in = 0, out = 0, blocosBuffer = 10;
+  Scanner entradaScanner;
 
   // Construtor
   BufferLimitado(int N, String entrada) {
     this.N = N;
-    Scanner s;
-
     try {
-      s = new Scanner(new FileInputStream(entrada));
-      this.elementos = s.nextInt();
-      this.buffer = new int[N];
-      this.entrada = new int[this.elementos];
+      this.entradaScanner = new Scanner(new FileInputStream(entrada));
+      this.entradaScanner.nextInt();
+      this.buffer = new int[this.blocosBuffer*N];
 
-      s.close();
     } catch (FileNotFoundException e) {
       e.printStackTrace();
     }
@@ -26,20 +27,17 @@ class BufferLimitado {
 
   public int getN() { return this.N; }
 
-  public void printBuffer() {
-    for(int i = 0; i < this.elementos; i++) {
-      if((i+1) % this.N == 0 && i != 0) System.out.println(this.entrada[i]);
-      else if(i == this.elementos - 1) System.out.print(this.entrada[i]);
-      else System.out.print(this.entrada[i] + " ");
-    }
+  public synchronized boolean hasNextInt() {
+    return this.entradaScanner.hasNextInt();
   }
 
-  public synchronized void Insere (int elemento) {
+  public synchronized void Insere () {
     try {
-      while (count == this.N) { wait(); } //bloqueio condicão lógica
-      // System.out.println("Inserindo elemento: " + elemento);
+      while (count == buffer.length) { wait(); } //bloqueio condicão lógica
+      int elemento = this.entradaScanner.nextInt();
       buffer[in] = elemento;
-      in = (in + 1) % this.N; count++;
+      in = (in + 1) % buffer.length; count++;
+      System.out.println("Inserindo elemento: " + elemento);
       notifyAll();
     } catch (InterruptedException e) { }
   }
@@ -47,11 +45,11 @@ class BufferLimitado {
   public synchronized int[] Remove () {
     int[] elementos = new int[this.N];
     try {
-      while (count == 0 || count != this.N) { wait(); } //bloqueio condição lógica
-
-      while(count > 0) {
-        elementos[out] = buffer[out % this.N];
-        out = (out + 1) % this.N; count--;
+      while (count == 0 || (count % this.N) != 0) { wait(); } //bloqueio condição lógica
+      int aux = count - this.N;
+      while(count > aux) {
+        elementos[out % this.N] = buffer[out % (buffer.length)];
+        out = (out + 1) % (buffer.length); count--;
       }
 
       notifyAll();
@@ -61,30 +59,22 @@ class BufferLimitado {
 }
 
 class Produtor extends Thread {
-  int id, elementos;
-  Scanner entrada;
+  int id;
   BufferLimitado buffer;
-  Produtor(int id, String entrada, BufferLimitado buffer) {
+  Produtor(int id, BufferLimitado buffer) {
     this.id = id;
     this.buffer = buffer;
-    try {
-      this.entrada = new Scanner(new FileInputStream(entrada));
-      this.elementos = this.entrada.nextInt();
-    } catch (FileNotFoundException e) {
-      e.printStackTrace();
-    }
   }
 
   public void run () {
-    for (;this.entrada.hasNextInt();) {
+    for (;this.buffer.hasNextInt();) {
       try {
-        this.buffer.Insere(entrada.nextInt());
+        this.buffer.Insere();
         sleep(0);
       } catch (InterruptedException e) {
         return;
       }
     }
-    // buffer.printBuffer();
   }
 }
 
@@ -92,10 +82,38 @@ class Consumidor extends Thread {
   int id;
   int[] bloco;
   BufferLimitado buffer;
-  Consumidor(int id, BufferLimitado buffer) {
+  Monitor monitor;
+  String saida;
+
+  Consumidor(int id, BufferLimitado buffer, Monitor monitor, String saida) {
     this.id = id;
     this.buffer = buffer;
     this.bloco = new int[buffer.getN()];
+    this.monitor = monitor;
+    this.saida = saida;
+
+    this.criaArquivoVazio();
+  }
+
+  private void criaArquivoVazio() {
+    File arquivoSaida = new File(saida);
+
+    if(!arquivoSaida.exists()) {
+			try {
+				arquivoSaida.createNewFile();
+			} catch (IOException e) {
+				System.err.println("Nao foi possivel criar o arquivo " + saida);
+			}
+		} else {
+      Writer arquivo;
+      try {
+        arquivo = new BufferedWriter(new FileWriter(this.saida, false));
+        arquivo.append("");
+        arquivo.close();
+      } catch (IOException e) {
+        System.err.println("Problema ao escrever arquivo. Verifique sua integridade.");
+      }
+    }
   }
 
   private int[] ordenaBloco(int tamBloco, int[] bloco) {
@@ -111,17 +129,28 @@ class Consumidor extends Thread {
         }
       }
     }
-
     return blocoOrdenado;
+  }
+
+  private void escreveBloco() {
+    Writer arquivo;
+    try {
+      arquivo = new BufferedWriter(new FileWriter(this.saida, true));
+      for(int i = 0; i < bloco.length; i++) arquivo.append(bloco[i] + " ");
+      arquivo.append("\n");
+      arquivo.close();
+    } catch (IOException e) {
+      System.err.println("Problema ao escrever arquivo. Verifique sua integridade.");
+    }
   }
 
   public void run () {
     for (;;) {
       try {
         this.bloco = this.ordenaBloco(this.buffer.getN(), this.buffer.Remove().clone());
-        
-        for(int i = 0; i < bloco.length; i++) System.out.print(bloco[i] + " ");
-        System.out.println();
+        this.monitor.EntraEscritor(id);
+        this.escreveBloco();
+        this.monitor.SaiEscritor(id);
         sleep(0);
       } catch (InterruptedException e) {
         return;
@@ -138,101 +167,42 @@ class Monitor {
     this.escr = 0;
   } 
   
-  public synchronized void EntraLeitor (int id) {
+  public synchronized void EntraLeitor () {
     try { 
-      while (this.escr > 0) {
-        System.out.println ("le.leitorBloqueado("+id+")");
-        wait();
-      }
+      while (this.escr > 0) { wait(); }
       this.leit++;
-      System.out.println ("le.leitorLendo("+id+")");
     } catch (InterruptedException e) { }
   }
   
-  public synchronized void SaiLeitor (int id) {
+  public synchronized void SaiLeitor () {
     this.leit--; 
-    if (this.leit == 0) 
-      this.notify(); 
-    System.out.println ("le.leitorSaindo("+id+")");
+    if (this.leit == 0) this.notify(); 
   }
   
   public synchronized void EntraEscritor (int id) {
     try { 
       while ((this.leit > 0) || (this.escr > 0)) {
-        System.out.println ("le.escritorBloqueado("+id+")");
+        // System.out.println ("le.escritorBloqueado("+id+")");
         wait();  
       }
       this.escr++;
-      System.out.println ("le.escritorEscrevendo("+id+")");
+      // System.out.println ("le.escritorEscrevendo("+id+")");
     } catch (InterruptedException e) { }
   }
   
   public synchronized void SaiEscritor (int id) {
     this.escr--; 
     notifyAll(); 
-    System.out.println ("le.escritorSaindo("+id+")");
-  }
-}
-
-class Leitor extends Thread {
-  int id;
-  Monitor monitor;
-
-  Leitor (int id, Monitor m) {
-    this.id = id;
-    this.monitor = m;
-  }
-
-  public void run () {
-    for (;;) {
-      try {
-        this.monitor.EntraLeitor(this.id);
-        // Lê
-        this.monitor.SaiLeitor(this.id);
-        sleep(1500);
-      } catch (InterruptedException e) {
-        return;
-      }
-    }
-  }
-}
-
-class Escritor extends Thread {
-  int id;
-  Monitor monitor;
-
-  Escritor (int id, Monitor m) {
-    this.id = id;
-    this.monitor = m;
-  }
-
-  public void run () {
-    for (;;) {
-      try {
-        this.monitor.EntraEscritor(this.id);
-        // Escreve
-        this.monitor.SaiEscritor(this.id);
-        sleep(1500);
-      } catch (InterruptedException e) {
-        return;
-      }
-    }
+    // System.out.println ("le.escritorSaindo("+id+")");
   }
 }
 
 class Main {
-  static final int Prod = 1;
-  static final int Cons = 4;
-  static final int L = 3;
-  static final int E = 2;
-
   public static void main (String[] args) {
     int i;
     Produtor prod;
-    Consumidor cons;
+    Consumidor[] cons;
     Monitor monitor = new Monitor();
-    Leitor[] l = new Leitor[L];
-    Escritor[] e = new Escritor[E]; 
 
     if(args.length < 4) {
       System.out.print("Falta(m) argumento(s). Escreva: ");
@@ -248,20 +218,13 @@ class Main {
     
     BufferLimitado buffer = new BufferLimitado(N, entrada);
 
-    prod = new Produtor(1, entrada, buffer);
+    cons = new Consumidor[C];
+    prod = new Produtor(1, buffer);
     prod.start();
 
-    cons = new Consumidor(2, buffer);
-    cons.start();
-    // for (i=0; i<L; i++) {
-    //    l[i] = new Leitor(i+1, monitor, numero);
-    //    l[i].start(); 
-    // }
-    
-    // for (i=0; i<E; i++) {
-    //    e[i] = new Escritor(i+1, monitor, numero);
-    //    e[i].start(); 
-    // }
-
+    for (i=0; i<C; i++) {
+      cons[i] = new Consumidor(i+2, buffer, monitor, saida);
+      cons[i].start();
+    }
   }
 }

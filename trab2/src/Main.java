@@ -21,9 +21,10 @@ class BufferLimitado {
   private int[] buffer;
   private int N, elementos, escritos = 0, count = 0, in = 0, out = 0, blocosBuffer = 10;
   Scanner entradaScanner;
+  private boolean pyLog = true;
 
   // Construtor
-  BufferLimitado(int N, String entrada) {
+  BufferLimitado(int N, String entrada, String saida) {
     this.N = N;
     try {
       this.entradaScanner = new Scanner(new FileInputStream(entrada)); // Guarda os dados do arquivo para ler posteriormente
@@ -31,6 +32,35 @@ class BufferLimitado {
       this.buffer = new int[this.blocosBuffer*N]; // Inicializa o buffer 10xN
     } catch (FileNotFoundException e) {
       e.printStackTrace();
+    }
+    if(pyLog) criaLogPython(entrada, saida);
+  }
+
+  // Cria um arquivo python para verificar a corretude da ordenacao do programa
+  private void criaLogPython(String entrada, String saida) {
+    String logPython = "verificaTrab2.py";
+    File logVerifica = new File(logPython);
+
+    if(!logVerifica.exists()) {
+			try {
+				logVerifica.createNewFile();
+			} catch (IOException e) {
+				System.err.println("Nao foi possivel criar o arquivo de log");
+			}
+		}
+    Writer arquivo;
+    try {
+      arquivo = new BufferedWriter(new FileWriter(logPython, false));
+      arquivo.append("");
+      arquivo.append("import ordenaBlocos\n");
+      arquivo.append("OB = ordenaBlocos.OrdenaBlocos()\n");
+      arquivo.append("OB.preencheBlocos('" + entrada + "')\n");
+      arquivo.append("OB.preencheBlocosOrdenados('" + saida + "')\n");
+      arquivo.append("OB.ordenaBlocos()\n");
+      arquivo.append("OB.verificaCorretude()");
+      arquivo.close();
+    } catch (IOException e) {
+      System.err.println("Problema ao escrever arquivo. Verifique sua integridade.");
     }
   }
 
@@ -263,7 +293,7 @@ class Main {
     Consumidor[] cons = new Consumidor[C];
     Monitor monitor = new Monitor();
     
-    BufferLimitado buffer = new BufferLimitado(N, entrada);
+    BufferLimitado buffer = new BufferLimitado(N, entrada, saida);
 
     // Iniciando a unica thread produtora do programa
     prod = new Produtor(1, buffer);

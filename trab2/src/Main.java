@@ -16,10 +16,82 @@ import java.io.IOException;
 import java.io.Writer;
 import java.util.Scanner;
 
+class VerificaCorretude {
+  private int[][] blocos;
+  private int N, elementos;
+  Scanner entradaScanner;
+
+  VerificaCorretude(int N, String entrada, String saida) {
+    this.N = N;
+    try {
+      this.entradaScanner = new Scanner(new FileInputStream(entrada)); // Guarda os dados do arquivo para ler posteriormente
+      this.elementos = this.entradaScanner.nextInt(); // Recebe o valor que representa o numero elementos no arquivo de entrada
+      this.blocos = new int[this.elementos/N][N]; // Inicializa o buffer MxN
+
+      for(int i = 0; i < blocos.length && this.entradaScanner.hasNextInt(); i++) {
+        for(int j = 0; j < blocos[i].length && this.entradaScanner.hasNextInt(); j++) {
+          blocos[i][j] = this.entradaScanner.nextInt();
+        }
+      }
+
+      for(int i = 0; i < blocos.length; i++) {
+        int[] bloco = new int[blocos[i].length];
+        bloco = ordenaBloco(blocos[i].length, blocos[i]);
+        blocos[i] = bloco.clone();
+      }
+
+      for(int i = 0; i < blocos.length; i++) {
+        for(int j = 0; j < blocos[i].length; j++) {
+          System.out.print(blocos[i][j] + " ");
+        }
+        System.out.println();
+      }
+    } catch (FileNotFoundException e) {
+      e.printStackTrace();
+    }
+  }
+
+  public boolean verifica(int[][] blocosConc) {
+    for(int i = 0; i < blocosConc.length; i++)  {
+      boolean blocoCerto = false;
+      for(int j = 0; j < this.blocos.length; j++) {
+        boolean certo = true;
+        for(int k = 0; k < this.N; k++) {
+          if(blocosConc[i][k] != this.blocos[j][k]) { certo = false; break; }
+        }
+        if(certo) {
+          blocoCerto = true;
+          break;
+        }
+      }
+      if(!blocoCerto) return false;
+    }
+    return true;
+  }
+
+  // Recebe um bloco e o retorna ordenado crescentemente
+  private int[] ordenaBloco(int tamBloco, int[] bloco) {
+    int[] blocoOrdenado = bloco;
+    int k, j, aux;
+
+    for (k = 1; k < tamBloco; k++) {
+      for (j = 0; j < tamBloco - k; j++) {
+        if (bloco[j] > bloco[j + 1]) {
+          aux = bloco[j];
+          bloco[j] = bloco[j + 1];
+          bloco[j + 1] = aux;
+        }
+      }
+    }
+    return blocoOrdenado;
+  }
+}
+
 // Classe que representa o buffer e os metodos a que ele eh relevante
 class BufferLimitado {
+  private int[][] blocos;
   private int[] buffer;
-  private int N, elementos, escritos = 0, count = 0, in = 0, out = 0, blocosBuffer = 10;
+  private int N, elementos, iBloco = 0, escritos = 0, count = 0, in = 0, out = 0, blocosBuffer = 10;
   Scanner entradaScanner;
   private boolean pyLog = true;
 
@@ -30,10 +102,25 @@ class BufferLimitado {
       this.entradaScanner = new Scanner(new FileInputStream(entrada)); // Guarda os dados do arquivo para ler posteriormente
       this.elementos = this.entradaScanner.nextInt(); // Recebe o valor que representa o numero elementos no arquivo de entrada
       this.buffer = new int[this.blocosBuffer*N]; // Inicializa o buffer 10xN
+      this.blocos = new int[this.elementos/N][N];
     } catch (FileNotFoundException e) {
       e.printStackTrace();
     }
     if(pyLog) criaLogPython(entrada, saida);
+  }
+
+  public int[][] printBlocos() {
+    for(int i = 0; i < blocos.length; i++) {
+      for(int j = 0; j < blocos[i].length; j++) {
+        System.out.print(blocos[i][j] + " ");
+      }
+      System.out.println();
+    }
+    return blocos.clone();
+  }
+
+  public synchronized void insereBloco(int[] bloco) {
+    blocos[iBloco++] = bloco.clone();
   }
 
   // Cria um arquivo python para verificar a corretude da ordenacao do programa
@@ -101,6 +188,8 @@ class BufferLimitado {
       // Bloqueio condicao logica. Aguarda pelo menos um bloco preencher, caso haja elementos para escrever
       while ((count == 0 || (count % this.N) != 0) && escritos < this.elementos) { wait(); }
 
+      if(escritos == this.elementos) return null;
+      
       // Retira exatamente um bloco
       int aux = count - this.N;
       while(count > aux && count > 0) {
@@ -210,13 +299,16 @@ class Consumidor extends Thread {
     } catch (IOException e) {
       System.err.println("Problema ao escrever arquivo. Verifique sua integridade.");
     }
+    this.buffer.insereBloco(bloco);
   }
 
   // Execucao da thread
   public void run () {
     for (;this.buffer.hasNextBloco();) {
       try {
-        this.bloco = this.ordenaBloco(this.buffer.getN(), this.buffer.Remove().clone()); // Bloco atual em ordem crescente.
+        int[] blocoAux = this.buffer.Remove();
+        if(blocoAux == null) return;
+        this.bloco = this.ordenaBloco(this.buffer.getN(), blocoAux.clone()); // Bloco atual em ordem crescente.
         this.monitor.EntraEscritor(id);
         this.escreveBloco();
         this.monitor.SaiEscritor(id);
@@ -323,5 +415,9 @@ class Main {
     // Sinaliza fim do programa
     System.out.println("Blocos escritos e ordenados em " + saida + " com sucesso!");
     System.out.println("Encerrando programa...\n");
+    VerificaCorretude v = new VerificaCorretude(N, entrada, saida);
+    System.out.println();
+    System.out.println(v.verifica(buffer.printBlocos()));
+    
   }
 }

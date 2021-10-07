@@ -1,3 +1,12 @@
+/* Disciplina: Computacao Concorrente */
+/* Prof.: Silvana Rossetto */
+/* */
+/* Codigo: Segundo Trabalho de Implementação */
+/* Aluno: Gabriel Magalhaes */ 
+/* DRE: 118088665 */ 
+/* Aluno: Raphael Mesquita */ 
+/* DRE: 118020104 */ 
+
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
@@ -7,18 +16,10 @@ import java.io.IOException;
 import java.io.Writer;
 import java.util.Scanner;
 
-/*  TO DO
-
-    - Finalizar a execucao do programa apropriadamente:
-      -> Ha threads consumidoras que nao finalizam apos nao haver mais blocos para escrever
-    
-    - Log/feedback informando que os arquivos ja foram lidos/escritos completamente
-*/
-
 // Classe que representa o buffer e os metodos a que ele eh relevante
 class BufferLimitado {
   private int[] buffer;
-  private int N, count = 0, in = 0, out = 0, blocosBuffer = 10;
+  private int N, elementos, escritos = 0, count = 0, in = 0, out = 0, blocosBuffer = 10;
   Scanner entradaScanner;
 
   // Construtor
@@ -26,7 +27,7 @@ class BufferLimitado {
     this.N = N;
     try {
       this.entradaScanner = new Scanner(new FileInputStream(entrada)); // Guarda os dados do arquivo para ler posteriormente
-      this.entradaScanner.nextInt(); // Consome o valor que representa o numero elementos no arquivo de entrada
+      this.elementos = this.entradaScanner.nextInt(); // Recebe o valor que representa o numero elementos no arquivo de entrada
       this.buffer = new int[this.blocosBuffer*N]; // Inicializa o buffer 10xN
     } catch (FileNotFoundException e) {
       e.printStackTrace();
@@ -35,6 +36,14 @@ class BufferLimitado {
 
   // Retorna o tamanho dos blocos
   public int getN() { return this.N; }
+
+  // Retorna se o numero de elementos escritos eh menor que o numero de elementos, ou seja,
+  // se ainda ha blocos para escrever. Caso nao haja, libera todas as threads.
+  public synchronized boolean hasNextBloco() {
+    boolean hasNext = this.escritos < this.elementos;
+    if(hasNext) this.notifyAll();
+    return hasNext;
+  }
 
   // Retorna se ainda ha elementos(numeros) a serem lidos no arquivo
   // Verifica com exclusao mutua, pois a leitura do arquivo pode ser feita com multiplas threads
@@ -59,13 +68,14 @@ class BufferLimitado {
   public synchronized int[] Remove () {
     int[] elementos = new int[this.N];
     try {
-      while (count == 0 || (count % this.N) != 0) { wait(); } // Bloqueio condicao logica. Aguarda pelo menos um bloco preencher.
+      // Bloqueio condicao logica. Aguarda pelo menos um bloco preencher, caso haja elementos para escrever
+      while ((count == 0 || (count % this.N) != 0) && escritos < this.elementos) { wait(); }
 
       // Retira exatamente um bloco
       int aux = count - this.N;
-      while(count > aux) {
+      while(count > aux && count > 0) {
         elementos[out % this.N] = buffer[out % (buffer.length)];
-        out = (out + 1) % (buffer.length); count--;
+        out = (out + 1) % (buffer.length); count--; escritos++;
       }
 
       notifyAll();
@@ -76,7 +86,7 @@ class BufferLimitado {
 
 // Classe que representa um produtor e seus metodos
 class Produtor extends Thread {
-  int id;
+  int id, delay = 0;
   BufferLimitado buffer;
 
   // Construtor
@@ -90,17 +100,18 @@ class Produtor extends Thread {
     for (;this.buffer.hasNextInt();) {
       try {
         this.buffer.Insere();
-        sleep(0);
+        sleep(delay);
       } catch (InterruptedException e) {
         return;
       }
     }
+    System.out.println("Produtor terminou de ler o arquivo.");
   }
 }
 
 // Classe que representa um consumidor e seus metodos
 class Consumidor extends Thread {
-  int id;
+  int id, delay = 0;
   int[] bloco;
   BufferLimitado buffer;
   Monitor monitor;
@@ -173,13 +184,13 @@ class Consumidor extends Thread {
 
   // Execucao da thread
   public void run () {
-    for (;;) {
+    for (;this.buffer.hasNextBloco();) {
       try {
         this.bloco = this.ordenaBloco(this.buffer.getN(), this.buffer.Remove().clone()); // Bloco atual em ordem crescente.
         this.monitor.EntraEscritor(id);
         this.escreveBloco();
         this.monitor.SaiEscritor(id);
-        sleep(0);
+        sleep(delay);
       } catch (InterruptedException e) {
         return;
       }
@@ -215,11 +226,9 @@ class Monitor {
   public synchronized void EntraEscritor (int id) {
     try { 
       while ((this.leit > 0) || (this.escr > 0)) {
-        // System.out.println ("le.escritorBloqueado("+id+")");
         wait();  
       }
       this.escr++;
-      // System.out.println ("le.escritorEscrevendo("+id+")");
     } catch (InterruptedException e) { }
   }
   
@@ -227,7 +236,6 @@ class Monitor {
   public synchronized void SaiEscritor (int id) {
     this.escr--; 
     notifyAll(); 
-    // System.out.println ("le.escritorSaindo("+id+")");
   }
 }
 
@@ -266,5 +274,24 @@ class Main {
       cons[i] = new Consumidor(i+2, buffer, monitor, saida);
       cons[i].start();
     }
+
+    // Aguarda as threads finalizarem suas execuções
+    try {
+      prod.join();
+    } catch (InterruptedException e) {
+      System.err.println("ERRO! --> Thread Produtora foi interrompida");
+    }
+
+    for (i=0; i<C; i++) {
+      try {
+        cons[i].join();
+      } catch (InterruptedException e) {
+        System.err.println("ERRO! --> Thread Consumidora "+ (i+2) + " foi interrompida");
+      }
+    }
+
+    // Sinaliza fim do programa
+    System.out.println("Blocos escritos e ordenados em " + saida + " com sucesso!");
+    System.out.println("Encerrando programa...\n");
   }
 }

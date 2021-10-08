@@ -254,9 +254,9 @@ class Consumidor extends Thread {
   }
 
   // Recebe um bloco e o retorna ordenado crescentemente
-  private int[] ordenaBloco(int tamBloco, int[] bloco) {
+  private int[] ordenaBloco(int[] bloco) {
     int[] blocoOrdenado = bloco;
-    int k, j, aux;
+    int k, j, aux, tamBloco = bloco.length;
 
     for (k = 1; k < tamBloco; k++) {
       for (j = 0; j < tamBloco - k; j++) {
@@ -290,7 +290,7 @@ class Consumidor extends Thread {
       try {
         int[] blocoAux = this.buffer.Remove();
         if(blocoAux == null) return;
-        this.bloco = this.ordenaBloco(this.buffer.getN(), blocoAux.clone()); // Bloco atual em ordem crescente.
+        this.bloco = this.ordenaBloco(blocoAux.clone()); // Bloco atual em ordem crescente.
         this.monitor.EntraEscritor(id);
         this.escreveBloco();
         this.monitor.SaiEscritor(id);
@@ -405,7 +405,8 @@ class Main {
     duracaoConc = (fimConc - inicioConc) / 1000.0;
 
     System.out.println();
-    System.out.println("Tempo de execucao concorrente com " + C + " thread consumidora foi de " + duracaoConc + " segundos");
+    char s = C > 1 ? 's' : '\0';
+    System.out.printf("Tempo de execucao concorrente com %d thread%c consumidora%c foi de %f segundos", C, s, s, duracaoConc);
     System.out.println();
 
     // Verifica corretude da implementacao concorrente
